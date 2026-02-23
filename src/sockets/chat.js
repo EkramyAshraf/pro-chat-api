@@ -20,7 +20,7 @@ module.exports = (io) => {
   });
 
   io.on("connection", (socket) => {
-    console.log(`✅ User connected: ${socket.user.name}`);
+    console.log(`✅ User connected: ${socket.user.username}`);
 
     socket.join(socket.user._id.toString());
     try {
