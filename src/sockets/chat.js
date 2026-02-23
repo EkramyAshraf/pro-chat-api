@@ -39,6 +39,9 @@ module.exports = (io) => {
           members: { $all: [senderId, receiverId] },
         });
 
+        console.log("Sender:", senderId);
+        console.log("Receiver:", receiverId);
+        console.log("Content:", content);
         //if no conversation, create one
         if (!conversation) {
           conversation = await Conversation.create({
