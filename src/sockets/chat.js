@@ -9,11 +9,13 @@ module.exports = (io) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId = decoded.id;
+
       next();
     } catch (err) {
       next(new Error("Authentication error: Invalid token"));
     }
   });
+
   io.on("connection", (socket) => {
     console.log(
       `✅ User Authorized: ${socket.userId} (Socket ID: ${socket.id})`,

@@ -8,7 +8,7 @@ const { Server } = require("socket.io");
 
 dotenv.config();
 const authRoutes = require("./routes/authRoutes");
-// const messageRoutes = require("./routes/messagesRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 // const conversationRoutes = require("./routes/conversationRoutes");
 const app = express();
 
@@ -37,7 +37,7 @@ mongoose
 
 //mount routes
 app.use("/api/auth", authRoutes);
-// app.use("/api/messages", messageRoutes);
+app.use("/api/chat", chatRoutes);
 // app.use("/api/conversations", conversationRoutes);
 
 //Socket.io basic connection
