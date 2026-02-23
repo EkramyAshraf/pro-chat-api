@@ -8,8 +8,8 @@ const { Server } = require("socket.io");
 
 dotenv.config();
 const authRoutes = require("./routes/authRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-// const conversationRoutes = require("./routes/conversationRoutes");
+const conversationRoutes = require("./routes/conversationRoutes");
+
 const app = express();
 
 // Body parser, reading data from body into req.body
@@ -37,8 +37,7 @@ mongoose
 
 //mount routes
 app.use("/api/auth", authRoutes);
-app.use("/api/chat", chatRoutes);
-// app.use("/api/conversations", conversationRoutes);
+app.use("/api/conversations", conversationRoutes);
 
 //Socket.io basic connection
 require("./sockets/chat")(io);

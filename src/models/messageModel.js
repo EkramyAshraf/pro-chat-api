@@ -1,22 +1,27 @@
 const mongoose = require("mongoose");
 const messageSchema = new mongoose.Schema(
   {
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "Conversation",
+    },
     sender: {
-      type: mongoose.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       require: true,
     },
     receiver: {
-      type: mongoose.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       require: true,
     },
-    message: {
+    content: {
       type: String,
       required: true,
       trim: true,
     },
-    isRead: {
+    seen: {
       type: Boolean,
       default: false,
     },
