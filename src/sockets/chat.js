@@ -39,9 +39,6 @@ module.exports = (io) => {
           members: { $all: [senderId, receiverId] },
         });
 
-        console.log("Sender:", senderId);
-        console.log("Receiver:", receiverId);
-        console.log("Content:", content);
         //if no conversation, create one
         if (!conversation) {
           conversation = await Conversation.create({
@@ -72,6 +69,36 @@ module.exports = (io) => {
       }
     });
 
+    //mark message as seen
+    socket.on("mark_as_seen", async ({ conversationId, senderId }) => {
+      try {
+        //1- validation:Ensure required data is present
+        if (!conversationId || !senderId) {
+          return console.log(
+            "Missing data: conversationId and senderId are required",
+          );
+        }
+        //2-Database Update: update all unread message from this sender in the conversation
+        const result = await Message.updateMany(
+          { conversationId, sender: senderId, seen: false },
+          { $set: { seen: true } },
+        );
+
+        //3-Notify the sender: only if messages were actually updated
+        if (result.modifiedCount > 0) {
+          //send event to the original sender room
+          io.to(senderId).emit("messages_seen", {
+            conversationId,
+            status: "read",
+          });
+          console.log(
+            `Success: ${result.modifiedCount} messages marked as seen in conv: ${conversationId}`,
+          );
+        }
+      } catch (err) {
+        console.error("Error in mark_as seen event");
+      }
+    });
     socket.on("disconnect", () => {
       console.log("❌ User disconnected");
     });
