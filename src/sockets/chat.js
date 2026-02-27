@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const Group = require("../models/groupModel");
 const Message = require("../models/messageModel");
 const Conversation = require("../models/conversationModel");
 module.exports = (io) => {
@@ -108,6 +109,46 @@ module.exports = (io) => {
       } catch (err) {
         console.error("Error in mark_as seen event");
       }
+    });
+
+    //find all groups where this user is member
+    const groups = await Group.find({ members: userId });
+
+    //loop through the groups and join each room
+    groups.forEach((group) => {
+      const roomId = group._id.toString();
+      socket.join(roomId);
+      console.log(`User ${userId} joined room: ${roomId}`);
+    });
+
+    //-- Handling Group Messages ---
+    socket.on("send_group_message", async (data) => {
+      const { content, groupId } = data;
+      const senderId = socket.user._id;
+
+      const group = await Group.findById(groupId);
+      if (!group) {
+        return socket.emit("error_message", { msg: "group does not exist" });
+      }
+      const newMessage = await Message.create({
+        conversationId: group.conversationId,
+        sender: senderId,
+        groupId: groupId,
+        content: content,
+        type: "group",
+      });
+      group.lastMessage = newMessage._id;
+      await group.save();
+
+      await Conversation.findByIdAndUpdate(group.conversationId, {
+        lastMessage: newMessage._id,
+      });
+
+      io.to(groupId).emit("receive_group_message", newMessage);
+      console.log(
+        "✅ Message processed for group conversation:",
+        group.conversationId,
+      );
     });
     socket.on("disconnect", async () => {
       console.log("❌ User disconnected");

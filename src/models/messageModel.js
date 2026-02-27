@@ -14,7 +14,9 @@ const messageSchema = new mongoose.Schema(
     receiver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: function () {
+        return this.type === "private";
+      },
     },
     content: {
       type: String,
@@ -24,6 +26,19 @@ const messageSchema = new mongoose.Schema(
     seen: {
       type: Boolean,
       default: false,
+    },
+    type: {
+      type: String,
+      enum: ["private", "group"],
+      default: "private",
+      required: true,
+    },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+      required: function () {
+        return this.type === "group";
+      },
     },
   },
   { timestamps: true },

@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 const groupSchema = new mongoose.Schema(
   {
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "Conversation",
+    },
     name: {
       type: String,
       required: true,
