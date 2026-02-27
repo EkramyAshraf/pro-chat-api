@@ -20,7 +20,7 @@ module.exports = (io) => {
     }
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     //1- join user to private room based on their user id
     const userId = socket.user._id.toString();
     socket.join(userId);
@@ -28,7 +28,17 @@ module.exports = (io) => {
       `✅ User connected: ${socket.user.username} (Room ID: ${userId})`,
     );
 
-    //2- handle sending a private message
+    //2.1-update status to online
+    await User.findByIdAndUpdate(userId, {
+      status: "online",
+    });
+
+    //2.2-Broadcast to everyone that this user is online
+    socket.broadcast.emit("user_status_changed", {
+      userId: userId,
+      status: "online",
+    });
+    //3- handle sending a private message
     socket.on("send_message", async (data) => {
       try {
         const { receiverId, content } = data;
@@ -99,8 +109,18 @@ module.exports = (io) => {
         console.error("Error in mark_as seen event");
       }
     });
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log("❌ User disconnected");
+
+      //1.1update status to offline
+      await User.findByIdAndUpdate(userId, {
+        status: "offline",
+      });
+      //1.2-Broadcast to everyone that this user is online
+      socket.broadcast.emit("user_status_changed", {
+        userId: userId,
+        status: "offline",
+      });
     });
   });
 };
