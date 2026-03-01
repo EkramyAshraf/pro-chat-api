@@ -67,3 +67,32 @@ exports.getConversations = async (req, res) => {
     res.status(400).json({ status: "fail", message: err.message });
   }
 };
+
+exports.accessConversation = async (req, res) => {
+  try {
+    const { receiver } = req.body;
+
+    let existingChat = await Conversation.findOne({
+      members: { $all: [req.user._id, receiver] },
+    })
+      .populate("members", "username avatar status")
+      .populate("lastMessage");
+
+    if (existingChat) {
+      return res.status(200).json(existingChat);
+    }
+
+    const newChat = await Conversation.create({
+      members: [req.user._id, receiver],
+    });
+
+    const fullChat = await Conversation.findById(newChat._id).populate(
+      "members",
+      "username avatar status",
+    );
+
+    res.status(200).json(fullChat);
+  } catch (err) {
+    res.status(400).json({ status: "fail", message: err.message });
+  }
+};
