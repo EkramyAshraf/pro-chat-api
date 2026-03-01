@@ -43,18 +43,6 @@ const userSchema = new mongoose.Schema(
       enum: ["online", "offline"],
       default: "offline",
     },
-    // friends: {
-    //   type: [{ name: String, id: String }],
-    //   default: [],
-    // },
-    // friendRequests: {
-    //   type: [{ name: String, id: String }],
-    //   default: [],
-    // },
-    // sentRequests: {
-    //   type: [{ name: String, id: String }],
-    //   default: [],
-    // },
   },
   { timestamps: true },
 );
