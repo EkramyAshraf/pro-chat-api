@@ -62,10 +62,10 @@ exports.getConversations = async (req, res) => {
       conversations.map(async (conv) => {
         const unreadCount = await Message.countDocuments({
           conversationId: conv._id,
-          seen: false,
+          sender: { $ne: req.user._id },
           $or: [
-            { receiver: req.user._id },
-            { type: "group", sender: { $ne: req.user._id } },
+            { type: "private", seen: false },
+            { type: "group", seenBy: { $nin: [req.user._id] } },
           ],
         });
 
@@ -104,6 +104,33 @@ exports.accessConversation = async (req, res) => {
     );
 
     res.status(200).json(fullChat);
+  } catch (err) {
+    res.status(400).json({ status: "fail", message: err.message });
+  }
+};
+
+exports.markAsSeen = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const result = await Message.updateMany(
+      {
+        conversationId,
+        sender: { $ne: req.user._id },
+        $or: [
+          { type: "private", seen: false, receiver: req.user._id },
+          { type: "group", seenBy: { $nin: [req.user._id] } },
+        ],
+      },
+      {
+        $set: { seen: true },
+        $addToSet: { seenBy: req.user._id },
+      },
+    );
+    res.status(200).json({
+      status: "success",
+      message: "message seen",
+      modifiedCount: result.modifiedCount,
+    });
   } catch (err) {
     res.status(400).json({ status: "fail", message: err.message });
   }

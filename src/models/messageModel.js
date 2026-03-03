@@ -33,6 +33,7 @@ const messageSchema = new mongoose.Schema(
       default: "private",
       required: true,
     },
+    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     groupId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",

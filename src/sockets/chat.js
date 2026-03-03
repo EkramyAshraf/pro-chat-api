@@ -91,8 +91,18 @@ module.exports = (io) => {
         }
         //2-Database Update: update all unread message from this sender in the conversation
         const result = await Message.updateMany(
-          { conversationId, sender: senderId, seen: false },
-          { $set: { seen: true } },
+          {
+            conversationId,
+            sender: { $ne: req.user._id },
+            $or: [
+              { type: "private", seen: false, receiver: req.user._id },
+              { type: "group", seenBy: { $nin: [req.user._id] } },
+            ],
+          },
+          {
+            $set: { seen: true },
+            $addToSet: { seenBy: req.user._id },
+          },
         );
 
         //3-Notify the sender: only if messages were actually updated
