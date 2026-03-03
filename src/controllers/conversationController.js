@@ -58,11 +58,23 @@ exports.getConversations = async (req, res) => {
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
 
-    res.status(200).json({
-      status: "success",
-      results: conversations.length,
-      data: conversations,
-    });
+    const results = await Promise.all(
+      conversations.map(async (conv) => {
+        const unreadCount = await Message.countDocuments({
+          conversationId: conv._id,
+          seen: false,
+          $or: [
+            { receiver: req.user._id },
+            { type: "group", sender: { $ne: req.user._id } },
+          ],
+        });
+
+        const convObj = conv.toObject();
+        convObj.unreadCount = unreadCount;
+        return convObj;
+      }),
+    );
+    res.status(200).json(results);
   } catch (err) {
     res.status(400).json({ status: "fail", message: err.message });
   }
