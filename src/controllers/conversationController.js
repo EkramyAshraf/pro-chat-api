@@ -135,3 +135,29 @@ exports.markAsSeen = async (req, res) => {
     res.status(400).json({ status: "fail", message: err.message });
   }
 };
+
+exports.deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "message not found" });
+    }
+
+    if (message.sender.toString() !== userId.toString()) {
+      return res
+        .status(403)
+        .json({ message: "you can not perform this action" });
+    }
+
+    message.content = "message is deleted";
+    message.isDeleted = true;
+    message.deletedAt = Date.now();
+    message.save();
+
+    res.status(200).json({ status: "success", data: message });
+  } catch (err) {
+    res.status(400).json({ status: "fail", message: err.message });
+  }
+};

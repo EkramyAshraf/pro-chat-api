@@ -93,15 +93,15 @@ module.exports = (io) => {
         const result = await Message.updateMany(
           {
             conversationId,
-            sender: { $ne: req.user._id },
+            sender: { $ne: userId },
             $or: [
-              { type: "private", seen: false, receiver: req.user._id },
-              { type: "group", seenBy: { $nin: [req.user._id] } },
+              { type: "private", seen: false, receiver: userId },
+              { type: "group", seenBy: { $nin: [userId] } },
             ],
           },
           {
             $set: { seen: true },
-            $addToSet: { seenBy: req.user._id },
+            $addToSet: { seenBy: userId },
           },
         );
 
@@ -160,6 +160,25 @@ module.exports = (io) => {
         group.conversationId,
       );
     });
+
+    socket.on("delete_message", (data) => {
+      try {
+        const { messageId, conversationId, type, receiver, groupId } = data;
+        let target = type === "group" ? groupId : receiver;
+
+        io.to(target).emit("message_deleted", {
+          messageId,
+          conversationId,
+          newContent: "message is deleted",
+        });
+        console.log(
+          `🗑️ Message ${messageId} deleted and broadcasted to ${target}`,
+        );
+      } catch (err) {
+        console.error("Error in delete_message socket:", err);
+      }
+    });
+
     socket.on("disconnect", async () => {
       console.log("❌ User disconnected");
 

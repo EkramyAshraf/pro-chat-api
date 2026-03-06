@@ -41,6 +41,13 @@ const messageSchema = new mongoose.Schema(
         return this.type === "group";
       },
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );
