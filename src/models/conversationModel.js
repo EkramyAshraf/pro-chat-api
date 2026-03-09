@@ -12,6 +12,28 @@ const conversationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
     },
+    type: {
+      type: String,
+      enum: ["private", "group"],
+      default: "private",
+      required: true,
+    },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+    },
+    hiddenFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    clearedAt: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        time: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );

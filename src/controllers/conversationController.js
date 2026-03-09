@@ -9,13 +9,33 @@ const Conversation = require("../models/conversationModel");
 exports.getMessages = async (req, res) => {
   try {
     const { conversationId } = req.params;
-    // 1. Define pagination parameters from query strings
+    const userId = req.user._id;
+    // 1. Fetch conversation to find the clearance timestamp for this user
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    // 2. Find the user's last clear-chat timestamp, default to 1970 if not found
+
+    const userClearInfo = conversation.clearedAt.find(
+      (c) => c.user.toString() === userId.toString(),
+    );
+
+    const clearTime = userClearInfo ? userClearInfo.time : new Date(0);
+
+    // 3. Define the filter query to only get messages created AFTER the clearTime
+    const filterQuery = {
+      conversationId,
+      createdAt: { $gt: clearTime },
+    };
+    // 4. Define pagination parameters from query strings
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
     // 2. Fetch messages: Sort by newest first to apply skip/limit correctly
-    const messages = await Message.find({ conversationId })
+    const messages = await Message.find(filterQuery)
       .populate("sender", "username avatar")
       .sort({
         createdAt: -1,
@@ -27,7 +47,7 @@ exports.getMessages = async (req, res) => {
     const orderedMessages = messages.reverse();
 
     // 4. Calculate total messages for frontend scroll logic
-    const totalMessages = await Message.countDocuments({ conversationId });
+    const totalMessages = await Message.countDocuments(filterQuery);
 
     res.status(200).json({
       status: "success",
@@ -51,10 +71,14 @@ exports.getMessages = async (req, res) => {
 //@access Private
 exports.getConversations = async (req, res) => {
   try {
+    const userId = req.user._id;
+
     const conversations = await Conversation.find({
-      members: { $in: [req.user._id] },
+      members: { $in: [userId] },
+      hiddenFor: { $ne: userId },
     })
       .populate("members", "username avatar status")
+      .populate("groupId", "name image description")
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
 
@@ -62,11 +86,9 @@ exports.getConversations = async (req, res) => {
       conversations.map(async (conv) => {
         const unreadCount = await Message.countDocuments({
           conversationId: conv._id,
-          sender: { $ne: req.user._id },
-          $or: [
-            { type: "private", seen: false },
-            { type: "group", seenBy: { $nin: [req.user._id] } },
-          ],
+          sender: { $ne: userId },
+          seenBy: { $nin: [userId] },
+          isDeleted: false,
         });
 
         const convObj = conv.toObject();
@@ -82,10 +104,12 @@ exports.getConversations = async (req, res) => {
 
 exports.accessConversation = async (req, res) => {
   try {
+    const userId = req.user._id;
+
     const { receiver } = req.body;
 
     let existingChat = await Conversation.findOne({
-      members: { $all: [req.user._id, receiver] },
+      members: { $all: [userId, receiver] },
     })
       .populate("members", "username avatar status")
       .populate("lastMessage");
@@ -111,19 +135,17 @@ exports.accessConversation = async (req, res) => {
 
 exports.markAsSeen = async (req, res) => {
   try {
+    const userId = req.user._id;
+
     const { conversationId } = req.params;
     const result = await Message.updateMany(
       {
         conversationId,
-        sender: { $ne: req.user._id },
-        $or: [
-          { type: "private", seen: false, receiver: req.user._id },
-          { type: "group", seenBy: { $nin: [req.user._id] } },
-        ],
+        sender: { $ne: userId },
+        seenBy: { $nin: [userId] },
       },
       {
-        $set: { seen: true },
-        $addToSet: { seenBy: req.user._id },
+        $addToSet: { seenBy: userId },
       },
     );
     res.status(200).json({
@@ -151,12 +173,35 @@ exports.deleteMessage = async (req, res) => {
         .json({ message: "you can not perform this action" });
     }
 
-    message.content = "message is deleted";
+    message.content = "This message was deleted";
     message.isDeleted = true;
     message.deletedAt = Date.now();
-    message.save();
+    await message.save();
 
     res.status(200).json({ status: "success", data: message });
+  } catch (err) {
+    res.status(400).json({ status: "fail", message: err.message });
+  }
+};
+
+exports.clearConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    //1- hide the conversation from the inbox and update clearedAt
+    await Conversation.findByIdAndUpdate(conversationId, {
+      $addToSet: { hiddenFor: userId },
+      $pull: { clearedAt: { user: userId } },
+    });
+
+    await Conversation.findByIdAndUpdate(conversationId, {
+      $push: { clearedAt: { user: userId, time: Date.now() } },
+    });
+    res.status(200).json({
+      status: "success",
+      message: "conversation is deleted",
+    });
   } catch (err) {
     res.status(400).json({ status: "fail", message: err.message });
   }

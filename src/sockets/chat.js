@@ -42,13 +42,19 @@ module.exports = (io) => {
     //3- handle sending a private message
     socket.on("send_message", async (data) => {
       try {
-        const { receiverId, content } = data;
+        const { conversationId, receiverId, content } = data;
         const senderId = socket.user._id;
 
         //find existing conversation between these two users
-        let conversation = await Conversation.findOne({
-          members: { $all: [senderId, receiverId] },
-        });
+        let conversation;
+        if (conversationId) {
+          conversation = await Conversation.findById(conversationId);
+        } else if (receiverId) {
+          conversation = await Conversation.findOne({
+            type: "private",
+            members: { $all: [senderId, receiverId] },
+          });
+        }
 
         //if no conversation, create one
         if (!conversation) {
@@ -61,17 +67,22 @@ module.exports = (io) => {
         const newMessage = await Message.create({
           conversationId: conversation._id,
           sender: senderId,
-          receiver: receiverId,
           content: content,
+          seenBy: [senderId],
         });
 
         //4- update the conversation with the last message ID for the chat list
         conversation.lastMessage = newMessage._id;
+        conversation.hiddenFor = [];
         await conversation.save();
 
         //5- emit the message to the receiver private room
-        io.to(receiverId).emit("receive_message", newMessage);
-
+        const targetMember = conversation.members.find(
+          (m) => m.toString() !== senderId.toString(),
+        );
+        if (targetMember) {
+          io.to(targetMember.toString()).emit("receive_message", newMessage);
+        }
         //6- send a confirmation back to the sender
         socket.emit("message_sent", newMessage);
       } catch (error) {
@@ -94,13 +105,9 @@ module.exports = (io) => {
           {
             conversationId,
             sender: { $ne: userId },
-            $or: [
-              { type: "private", seen: false, receiver: userId },
-              { type: "group", seenBy: { $nin: [userId] } },
-            ],
+            seenBy: { $nin: [userId] },
           },
           {
-            $set: { seen: true },
             $addToSet: { seenBy: userId },
           },
         );
@@ -110,6 +117,7 @@ module.exports = (io) => {
           //send event to the original sender room
           io.to(senderId).emit("messages_seen", {
             conversationId,
+            userId,
             status: "read",
           });
           console.log(
@@ -121,58 +129,87 @@ module.exports = (io) => {
       }
     });
 
-    //find all groups where this user is member
-    const groups = await Group.find({ members: userId });
-
-    //loop through the groups and join each room
-    groups.forEach((group) => {
-      const roomId = group._id.toString();
+    //find all conversations where this user is member
+    //loop through the conversations and join each room
+    const userConvs = await Conversation.find({ members: userId });
+    userConvs.forEach((conv) => {
+      const roomId = conv._id.toString();
       socket.join(roomId);
       console.log(`User ${userId} joined room: ${roomId}`);
     });
 
     //-- Handling Group Messages ---
     socket.on("send_group_message", async (data) => {
-      const { content, groupId } = data;
+      const { content, conversationId } = data;
       const senderId = socket.user._id;
 
-      const group = await Group.findById(groupId);
-      if (!group) {
-        return socket.emit("error_message", { msg: "group does not exist" });
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return socket.emit("error_message", {
+          msg: "conversation does not exist",
+        });
       }
       const newMessage = await Message.create({
-        conversationId: group.conversationId,
+        conversationId: conversation._id,
         sender: senderId,
-        groupId: groupId,
         content: content,
-        type: "group",
+        seenBy: [senderId],
       });
-      group.lastMessage = newMessage._id;
-      await group.save();
+      conversation.lastMessage = newMessage._id;
+      conversation.hiddenFor = [];
+      await conversation.save();
 
-      await Conversation.findByIdAndUpdate(group.conversationId, {
+      await Conversation.findByIdAndUpdate(conversation._id, {
         lastMessage: newMessage._id,
       });
 
-      io.to(groupId).emit("receive_group_message", newMessage);
+      socket.to(conversationId).emit("receive_group_message", newMessage);
       console.log(
         "✅ Message processed for group conversation:",
-        group.conversationId,
+        conversation._id,
       );
     });
 
-    socket.on("delete_message", (data) => {
+    socket.on("delete_message", async (data) => {
       try {
-        const { messageId, conversationId, type, receiver, groupId } = data;
-        let target = type === "group" ? groupId : receiver;
+        const { messageId } = data;
+        const message =
+          await Message.findById(messageId).populate("conversationId");
+        if (!message)
+          return socket.emit("error_message", { msg: "Message not found" });
 
-        io.to(target).emit("message_deleted", {
-          messageId,
-          conversationId,
-          newContent: "message is deleted",
-        });
+        if (message.sender.toString() !== userId.toString()) {
+          return socket.emit("error_message", { msg: "Unauthorized" });
+        }
+
+        message.content = "This message was deleted";
+        message.isDeleted = true;
+        message.deletedAt = new Date();
+        await message.save();
+
+        const conv = message.conversationId;
+
+        let targetId;
+        if (conv.type === "private") {
+          targetId = conv.members.find(
+            (m) => m.toString() !== userId.toString(),
+          );
+          if (targetId) {
+            io.to(targetId.toString()).emit("message_deleted", {
+              messageId,
+              conversationId: conv._id,
+            });
+          }
+        } else {
+          socket.to(conv._id.toString()).emit("message_deleted", {
+            messageId,
+            conversationId: conv._id,
+          });
+        }
+        socket.emit("message_deleted", { messageId, conversationId: conv._id });
+
         console.log(
-          `🗑️ Message ${messageId} deleted and broadcasted to ${target}`,
+          `🗑️ Message ${messageId} deleted in ${conv.type} chat: ${conv._id}`,
         );
       } catch (err) {
         console.error("Error in delete_message socket:", err);

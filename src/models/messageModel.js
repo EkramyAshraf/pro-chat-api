@@ -11,36 +11,14 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    receiver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: function () {
-        return this.type === "private";
-      },
-    },
     content: {
       type: String,
       required: true,
       trim: true,
     },
-    seen: {
-      type: Boolean,
-      default: false,
-    },
-    type: {
-      type: String,
-      enum: ["private", "group"],
-      default: "private",
-      required: true,
-    },
+
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    groupId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Group",
-      required: function () {
-        return this.type === "group";
-      },
-    },
+
     isDeleted: {
       type: Boolean,
       default: false,
