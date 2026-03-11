@@ -45,6 +45,30 @@ module.exports = (io) => {
         const { conversationId, receiverId, content } = data;
         const senderId = socket.user._id;
 
+        const [sender, receiver] = await Promise.all([
+          User.findById(senderId).select("blockedUsers"),
+          User.findById(receiverId).select("blockedUsers"),
+        ]);
+
+        const senderBlocked = receiver.blockedUsers.some(
+          (id) => id.toString() === senderId.toString(),
+        );
+
+        const receiverBlocked = sender.blockedUsers.some(
+          (id) => id.toString() === receiverId.toString(),
+        );
+
+        if (senderBlocked) {
+          return socket.emit("error_message", {
+            message: "You are blocked by this user",
+          });
+        }
+
+        if (receiverBlocked) {
+          return socket.emit("error_message", {
+            message: "Unblock this user first to send messages",
+          });
+        }
         //find existing conversation between these two users
         let conversation;
         if (conversationId) {
@@ -126,6 +150,35 @@ module.exports = (io) => {
         }
       } catch (err) {
         console.error("Error in mark_as seen event");
+      }
+    });
+
+    socket.on("get_user_status", async (data) => {
+      try {
+        const userId = socket.user._id;
+        const { targetUserId } = data;
+        const targetUser = await User.findById(targetUserId).select(
+          "status blockedUsers",
+        );
+        if (!targetUser) return;
+
+        const amIBlocked = targetUser.blockedUsers.some(
+          (id) => id.toString() === userId.toString(),
+        );
+
+        if (amIBlocked) {
+          return socket.emit("user_status", {
+            userId: targetUserId,
+            status: "offline",
+          });
+        }
+
+        socket.emit("user_status", {
+          userId: targetUserId,
+          status: targetUser.status,
+        });
+      } catch (err) {
+        console.error("Error in get_user_status:", err.message);
       }
     });
 

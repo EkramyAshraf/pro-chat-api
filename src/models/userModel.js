@@ -43,6 +43,12 @@ const userSchema = new mongoose.Schema(
       enum: ["online", "offline"],
       default: "offline",
     },
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true },
 );

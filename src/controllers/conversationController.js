@@ -22,7 +22,9 @@ exports.getMessages = async (req, res) => {
       (c) => c.user.toString() === userId.toString(),
     );
 
-    const clearTime = userClearInfo ? userClearInfo.time : new Date(0);
+    const clearTime = userClearInfo
+      ? new Date(userClearInfo.time)
+      : new Date(0);
 
     // 3. Define the filter query to only get messages created AFTER the clearTime
     const filterQuery = {
@@ -77,7 +79,7 @@ exports.getConversations = async (req, res) => {
       members: { $in: [userId] },
       hiddenFor: { $ne: userId },
     })
-      .populate("members", "username avatar status")
+      .populate("members", "username avatar status blockedUsers")
       .populate("groupId", "name image description")
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
@@ -93,6 +95,31 @@ exports.getConversations = async (req, res) => {
 
         const convObj = conv.toObject();
         convObj.unreadCount = unreadCount;
+
+        if (conv.type === "private") {
+          const me = conv.members.find(
+            (m) => m._id.toString() === userId.toString(),
+          );
+
+          const otherUser = conv.members.find(
+            (m) => m._id.toString() !== userId.toString(),
+          );
+
+          if (me && otherUser) {
+            const iBlockedHim = me.blockedUsers.some(
+              (b) => b.toString() === otherUser._id.toString(),
+            );
+
+            const heBlockedMe = otherUser.blockedUsers.some(
+              (b) => b.toString() === me._id.toString(),
+            );
+            convObj.isBlocked = iBlockedHim || heBlockedMe;
+            convObj.blockedByMe = iBlockedHim;
+          } else {
+            convObj.isBlocked = false;
+            convObj.blockedByMe = false;
+          }
+        }
         return convObj;
       }),
     );

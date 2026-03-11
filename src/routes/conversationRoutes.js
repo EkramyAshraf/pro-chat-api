@@ -16,7 +16,6 @@ router.get("/:conversationId/messages", protect, getMessages);
 router.post("/access", protect, accessConversation);
 router.delete("/messages/:messageId", protect, deleteMessage);
 router.patch("/mark-as-seen/:conversationId", protect, markAsSeen);
-
 router.delete("/:conversationId/clear", protect, clearConversation);
 
 module.exports = router;
