@@ -16,9 +16,19 @@ const messageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
-    seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
+    text: { type: String },
+    image: { type: String },
+    messageType: {
+      type: String,
+      enum: ["text", "image", "file"],
+      default: "text",
+    },
+    seenBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     isDeleted: {
       type: Boolean,
       default: false,
