@@ -13,14 +13,12 @@ const messageSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: true,
       trim: true,
     },
-    text: { type: String },
-    image: { type: String },
+    fileUrl: { type: String },
     messageType: {
       type: String,
-      enum: ["text", "image", "file"],
+      enum: ["text", "image", "file", "voice", "video"],
       default: "text",
     },
     seenBy: [

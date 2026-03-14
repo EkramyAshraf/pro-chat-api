@@ -42,7 +42,8 @@ module.exports = (io) => {
     //3- handle sending a private message
     socket.on("send_message", async (data) => {
       try {
-        const { conversationId, receiverId, content } = data;
+        const { conversationId, receiverId, content, fileUrl, messageType } =
+          data;
         const senderId = socket.user._id;
 
         const [sender, receiver] = await Promise.all([
@@ -92,6 +93,8 @@ module.exports = (io) => {
           conversationId: conversation._id,
           sender: senderId,
           content: content,
+          fileUrl: fileUrl,
+          messageType: messageType || "text",
           seenBy: [senderId],
         });
 
