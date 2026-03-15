@@ -3,6 +3,7 @@ const User = require("../models/userModel");
 const Group = require("../models/groupModel");
 const Message = require("../models/messageModel");
 const Conversation = require("../models/conversationModel");
+const { Socket } = require("socket.io-client");
 module.exports = (io) => {
   //auth middleware
   io.use(async (socket, next) => {
@@ -24,13 +25,13 @@ module.exports = (io) => {
   io.on("connection", async (socket) => {
     //1- join user to private room based on their user id
     const userId = socket.user._id.toString();
+
     socket.join(userId);
-    console.log(
-      `✅ User connected: ${socket.user.username} (Room ID: ${userId})`,
-    );
+    console.log(`User connected: ${socket.user.username} (Room ID: ${userId})`);
 
     //2.1-update status to online
     await User.findByIdAndUpdate(userId, {
+      userId: userId,
       status: "online",
     });
 
@@ -113,11 +114,26 @@ module.exports = (io) => {
         //6- send a confirmation back to the sender
         socket.emit("message_sent", newMessage);
       } catch (error) {
-        console.error("❌ socket error:", error);
+        console.error("socket error:", error);
         socket.emit("error_message", { msg: "Message delivery failed" });
       }
     });
 
+    //typing indicator
+    socket.on("typing", async (data) => {
+      const { receiverId, conversationId } = data;
+      socket.to(receiverId).emit("display_typing", {
+        senderId: userId,
+        conversationId: conversationId,
+      });
+    });
+
+    socket.on("stop_typing", async (data) => {
+      const { receiverId, conversationId } = data;
+      socket.to(receiverId).emit("hide_typing", {
+        conversationId: conversationId,
+      });
+    });
     //mark message as seen
     socket.on("mark_as_seen", async ({ conversationId, senderId }) => {
       try {
@@ -273,16 +289,18 @@ module.exports = (io) => {
     });
 
     socket.on("disconnect", async () => {
-      console.log("❌ User disconnected");
+      console.log("User disconnected");
 
       //1.1update status to offline
       await User.findByIdAndUpdate(userId, {
         status: "offline",
+        lastSeen: new Date(),
       });
       //1.2-Broadcast to everyone that this user is online
       socket.broadcast.emit("user_status_changed", {
         userId: userId,
         status: "offline",
+        lastSeen: new Date(),
       });
     });
   });
