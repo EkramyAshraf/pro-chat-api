@@ -4,6 +4,7 @@ const Group = require("../models/groupModel");
 const Message = require("../models/messageModel");
 const Conversation = require("../models/conversationModel");
 const { Socket } = require("socket.io-client");
+const { sendPushNotification } = require("../utils/sendNotification");
 module.exports = (io) => {
   //auth middleware
   io.use(async (socket, next) => {
@@ -110,6 +111,20 @@ module.exports = (io) => {
         );
         if (targetMember) {
           io.to(targetMember.toString()).emit("receive_message", newMessage);
+        }
+
+        //send notification to receiver if he is offline
+        const receptionist = await User.findById(receiverId);
+        if (
+          receptionist &&
+          receptionist.status !== "online" &&
+          receptionist.fcmToken
+        ) {
+          sendPushNotification(
+            receptionist.fcmToken,
+            `message from ${socket.user.username}`,
+            content,
+          );
         }
         //6- send a confirmation back to the sender
         socket.emit("message_sent", newMessage);
