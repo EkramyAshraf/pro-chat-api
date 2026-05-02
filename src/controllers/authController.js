@@ -1,18 +1,8 @@
-const User = require("../models/userModel");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
-const { promisify } = require("util");
+const authService = require("../services/authService");
 
 exports.signup = async (req, res) => {
   try {
-    const { username, email, password, passwordConfirm } = req.body;
-    const newUser = await User.create({
-      username,
-      email,
-      password,
-      passwordConfirm,
-    });
-
+    const { newUser } = await authService.registerUser(req.body);
     res.status(201).json({
       status: "success",
       newUser,
@@ -24,25 +14,30 @@ exports.signup = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email: email }).select("+password");
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(404).json({ error: "incorrect password" });
-    }
-
-    const token = await jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+    const { email, password, fcmToken } = req.body;
+    const { user, token } = await authService.loginUser(
+      email,
+      password,
+      fcmToken,
+    );
     res.status(200).json({
       status: "success",
       username: user.username,
       token,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    await authService.clearUserSession(userId);
+
+    res.status(200).json({
+      status: "success",
+      message: "Logged out successfully",
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

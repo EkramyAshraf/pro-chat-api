@@ -44,7 +44,7 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/users", userRoutes);
 
 //Socket.io basic connection
-require("./sockets/chat")(io);
+require("./sockets/index")(io);
 const port = process.env.PORT || 3000;
 server.listen(port, () => {
   console.log(`server is running on port ${port}`);

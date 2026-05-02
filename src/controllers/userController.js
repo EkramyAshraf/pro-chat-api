@@ -1,29 +1,17 @@
-const { default: mongoose } = require("mongoose");
-const User = require("../models/userModel");
+const userService = require("../services/userService");
 
 exports.searchUsers = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { searchQuery } = req.query;
+    const userId = req.user._id;
 
-    if (!query) {
+    if (!searchQuery) {
       return res
         .status(400)
         .json({ status: "fail", message: "Please provide a search query" });
     }
 
-    const users = await User.find({
-      $and: [
-        {
-          $or: [
-            { username: { $regex: query, $options: "i" } },
-            { email: { $regex: query, $options: "i" } },
-          ],
-        },
-        {
-          _id: { $ne: req.user._id },
-        },
-      ],
-    }).select("username avatar status");
+    const users = await userService.searchUsers(searchQuery, userId);
 
     res.status(200).json({
       status: "success",
@@ -43,31 +31,16 @@ exports.toggleBlock = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
       return res.status(400).json({ message: "Invalid User ID" });
     }
-    const user = await User.findById(userId).select("blockedUsers");
-    const isAlreadyBlocked = user.blockedUsers.some(
-      (id) => id.toString() === targetUserId.toString(),
-    );
-
-    let updateAction;
-    let message;
-
-    if (isAlreadyBlocked) {
-      updateAction = { $pull: { blockedUsers: targetUserId } };
-      message = "User unblocked successfully";
-    } else {
-      updateAction = { $addToSet: { blockedUsers: targetUserId } };
-      message = "User blocked successfully";
-    }
-
-    await User.findByIdAndUpdate(userId, updateAction);
+    const result = await userService.processToggleBlock(userId, targetUserId);
 
     res.status(200).json({
       status: "success",
-      message,
-      isBlocked: !isAlreadyBlocked,
+      message: result.message,
+      isBlocked: result.isBlocked,
     });
   } catch (err) {
     console.error("Block Error:", err);
-    res.status(500).json({ message: "Server error in toggleBlock" });
+    const statusCode = err.message === "User not found" ? 400 : 500;
+    res.status(statusCode).json({ message: "Server error in toggleBlock" });
   }
 };

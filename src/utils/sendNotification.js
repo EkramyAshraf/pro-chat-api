@@ -1,5 +1,4 @@
 const admin = require("../config/firebaseConfig");
-
 exports.sendPushNotification = async (targetToken, title, message) => {
   const payload = {
     notification: {

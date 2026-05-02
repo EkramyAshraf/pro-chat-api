@@ -10,7 +10,7 @@ const {
 } = require("../controllers/conversationController");
 const upload = require("../middlewares/uploadMiddleware");
 
-const { uploadMedia } = require("../controllers/uploadController");
+const { uploadMedia } = require("../controllers/mediaController");
 const router = express.Router();
 
 router.get("/", protect, getConversations);
