@@ -19,3 +19,21 @@ exports.createNewGroup = async (groupData, userId) => {
   });
   return newGroup;
 };
+
+exports.sendGroupMessage = async (senderId, conversationId, content) => {
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation) {
+    throw new Error("conversation does not exist");
+  }
+  const newMessage = await Message.create({
+    conversationId: conversation._id,
+    sender: senderId,
+    content: content,
+    seenBy: [senderId],
+  });
+  conversation.lastMessage = newMessage._id;
+  conversation.hiddenFor = [];
+  await conversation.save();
+
+  return { newMessage, conversation };
+};

@@ -1,6 +1,8 @@
 const Message = require("../models/messageModel");
 const Conversation = require("../models/conversationModel");
 
+const User = require("../models/userModel");
+
 //@desc Get all messages within specific conversation
 //@route GET /api/conversations/:conversationId/messages
 //@access Private
@@ -134,7 +136,7 @@ exports.accessUserConversation = async (userId, receiverId) => {
 };
 
 exports.updateMessageSeen = async (conversationId, userId) => {
-  return await Message.updateMany(
+  const result = await Message.updateMany(
     {
       conversationId,
       sender: { $ne: userId },
@@ -144,6 +146,7 @@ exports.updateMessageSeen = async (conversationId, userId) => {
       $addToSet: { seenBy: userId },
     },
   );
+  return result;
 };
 
 exports.softDeleteMessage = async (messageId, userId) => {
@@ -156,7 +159,13 @@ exports.softDeleteMessage = async (messageId, userId) => {
   message.content = "This message was deleted";
   message.isDeleted = true;
   message.deletedAt = Date.now();
-  return await message.save();
+  await message.save();
+
+  await Conversation.updateOne(
+    { lastMessage: messageId },
+    { $set: { updatedAt: Date.now() } },
+  );
+  return message;
 };
 
 exports.clearChatForUser = async (conversationId, userId) => {
@@ -173,4 +182,69 @@ exports.clearChatForUser = async (conversationId, userId) => {
     },
     { new: true },
   );
+};
+
+exports.sendPrivateMessage = async (
+  senderId,
+  conversationId,
+  receiverId,
+  content,
+  fileUrl,
+  messageType,
+) => {
+  const [sender, receiver] = await Promise.all([
+    User.findById(senderId).select("blockedUsers"),
+    User.findById(receiverId).select("blockedUsers"),
+  ]);
+
+  const senderBlocked = receiver.blockedUsers.some(
+    (id) => id.toString() === senderId.toString(),
+  );
+
+  const receiverBlocked = sender.blockedUsers.some(
+    (id) => id.toString() === receiverId.toString(),
+  );
+
+  if (senderBlocked) throw new Error("You are blocked by this user");
+  if (receiverBlocked)
+    throw new Error("Unblock this user first to send messages");
+  //find existing conversation between these two users
+  let conversation;
+  if (conversationId) {
+    conversation = await Conversation.findById(conversationId);
+  } else if (receiverId) {
+    conversation = await Conversation.findOne({
+      type: "private",
+      members: { $all: [senderId, receiverId] },
+    });
+  }
+
+  //if no conversation, create one
+  if (!conversation) {
+    conversation = await Conversation.create({
+      members: [senderId, receiverId],
+    });
+  }
+
+  //3-save the message and link it to the conversation
+  const newMessage = await Message.create({
+    conversationId: conversation._id,
+    sender: senderId,
+    content: content,
+    fileUrl: fileUrl,
+    messageType: messageType || "text",
+    seenBy: [senderId],
+  });
+
+  //4- update the conversation with the last message ID for the chat list
+  conversation.lastMessage = newMessage._id;
+  conversation.hiddenFor = [];
+  await conversation.save();
+
+  return { newMessage, conversation };
+};
+
+exports.getUserConversationIds = async (userId) => {
+  const userConvs = await Conversation.find({ members: userId }).select("_id");
+  return userConvs.map((conv) => conv._id.toString());
 };

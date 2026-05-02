@@ -1,4 +1,5 @@
 const User = require("../models/userModel");
+const userService = require("../services/userService");
 module.exports = async (io, socket) => {
   //1- join user to private room based on their user id
   const userId = socket.user._id.toString();
@@ -6,10 +7,7 @@ module.exports = async (io, socket) => {
   console.log(`User connected: ${socket.user.username} (Room ID: ${userId})`);
 
   //2.1-update status to online
-  await User.findByIdAndUpdate(userId, {
-    userId: userId,
-    status: "online",
-  });
+  await userService.updateUserStatus(userId);
 
   //2.2-Broadcast to everyone that this user is online
   socket.broadcast.emit("user_status_changed", {
@@ -21,25 +19,10 @@ module.exports = async (io, socket) => {
     try {
       const userId = socket.user._id;
       const { targetUserId } = data;
-      const targetUser = await User.findById(targetUserId).select(
-        "status blockedUsers",
-      );
-      if (!targetUser) return;
-
-      const amIBlocked = targetUser.blockedUsers.some(
-        (id) => id.toString() === userId.toString(),
-      );
-
-      if (amIBlocked) {
-        return socket.emit("user_status", {
-          userId: targetUserId,
-          status: "offline",
-        });
-      }
-
+      const status = await userService.getVisibleStatus(userId, targetUserId);
       socket.emit("user_status", {
         userId: targetUserId,
-        status: targetUser.status,
+        status: status,
       });
     } catch (err) {
       console.error("Error in get_user_status:", err.message);

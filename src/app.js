@@ -14,6 +14,12 @@ const conversationRoutes = require("./routes/conversationRoutes");
 
 const app = express();
 
+//swagger documentation
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpecs = require("./swagger");
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+
 // Body parser, reading data from body into req.body
 app.use(cors());
 app.use(express.json({ limit: "20kb" }));
@@ -23,6 +29,7 @@ const io = new Server(server, {
     origin: "*",
   },
 });
+
 app.get("/", (req, res) => {
   res.send("server is running");
 });

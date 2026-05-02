@@ -1,4 +1,3 @@
-const { default: mongoose } = require("mongoose");
 const User = require("../models/userModel");
 
 exports.searchUsers = async (searchQuery, userId) => {
@@ -42,4 +41,24 @@ exports.processToggleBlock = async (userId, targetUserId) => {
     message,
     isBlocked: !isAlreadyBlocked,
   };
+};
+
+exports.updateUserStatus = async (userId) => {
+  return await User.findByIdAndUpdate(userId, {
+    status: "online",
+    lastSeen: new Date(),
+  });
+};
+
+exports.getVisibleStatus = async (userId, targetUserId) => {
+  const targetUser = await User.findById(targetUserId).select(
+    "status blockedUsers",
+  );
+  if (!targetUser) throw new Error("User not found");
+
+  const amIBlocked = targetUser.blockedUsers.some(
+    (id) => id.toString() === userId.toString(),
+  );
+
+  return amIBlocked ? "offline" : targetUser.status;
 };
